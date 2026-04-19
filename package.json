@@ -10,9 +10,21 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@codemirror/lang-markdown": "^6.5.0",
+    "@codemirror/state": "^6.6.0",
+    "@codemirror/view": "^6.41.1",
     "@tauri-apps/api": "^2",
+    "codemirror": "^6.0.2",
+    "markmap-lib": "^0.18.12",
+    "markmap-view": "^0.18.12",
+    "mdast-util-to-markdown": "^2.1.2",
+    "nanoid": "^5.1.9",
     "react": "^19.2.4",
-    "react-dom": "^19.2.4"
+    "react-dom": "^19.2.4",
+    "remark-parse": "^11.0.0",
+    "unified": "^11.0.5",
+    "unist-util-visit": "^5.1.0",
+    "zustand": "^5.0.12"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

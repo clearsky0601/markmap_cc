@@ -1,36 +1,23 @@
-import { useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { MarkdownEditor } from "./editor/MarkdownEditor";
+import { MindmapView } from "./components/canvas/MindmapView";
 import "./App.css";
 
 function App() {
-  const [greeting, setGreeting] = useState<string>("…");
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    invoke<string>("greet", { name: "tommy" })
-      .then((msg) => {
-        setGreeting(msg);
-        console.log("[ipc] greet →", msg);
-      })
-      .catch((e) => {
-        setError(String(e));
-        console.error("[ipc] greet failed", e);
-      });
-  }, []);
-
   return (
-    <main className="phase-a">
-      <h1>markmap_cc</h1>
-      <p className="tagline">Phase A · skeleton</p>
-      <section className="ipc-card">
-        <h2>IPC roundtrip</h2>
-        {error ? (
-          <pre className="error">{error}</pre>
-        ) : (
-          <pre className="ok">{greeting}</pre>
-        )}
-      </section>
-    </main>
+    <div className="phase-b">
+      <header className="phase-b__bar">
+        <span className="phase-b__title">markmap_cc</span>
+        <span className="phase-b__tag">Phase B · md → mindmap (dev split)</span>
+      </header>
+      <main className="phase-b__split">
+        <section className="phase-b__pane phase-b__pane--editor">
+          <MarkdownEditor />
+        </section>
+        <section className="phase-b__pane phase-b__pane--canvas">
+          <MindmapView />
+        </section>
+      </main>
+    </div>
   );
 }
 
