@@ -1,11 +1,13 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "enables the default permissions",
-  "windows": [
-    "main"
-  ],
+  "description": "default permissions for markmap_cc main window",
+  "windows": ["main"],
   "permissions": [
-    "core:default"
+    "core:default",
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "fs:default",
+    "store:default"
   ]
 }
