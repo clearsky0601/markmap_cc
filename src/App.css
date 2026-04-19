@@ -1,0 +1,89 @@
+:root {
+  color-scheme: light dark;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue",
+    Arial, sans-serif;
+  background: #f7f7f8;
+  color: #1d1d1f;
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    background: #1a1a1c;
+    color: #f1f1f3;
+  }
+}
+
+.phase-a {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 48px;
+  text-align: center;
+}
+
+.phase-a h1 {
+  font-size: 44px;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.phase-a .tagline {
+  margin: 0;
+  opacity: 0.6;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.ipc-card {
+  width: min(560px, 100%);
+  padding: 20px 24px;
+  border-radius: 12px;
+  background: rgba(127, 127, 127, 0.08);
+  border: 1px solid rgba(127, 127, 127, 0.18);
+  text-align: left;
+}
+
+.ipc-card h2 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.7;
+}
+
+.ipc-card pre {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ipc-card .ok {
+  background: rgba(52, 199, 89, 0.12);
+  color: #137333;
+}
+
+.ipc-card .error {
+  background: rgba(255, 59, 48, 0.12);
+  color: #b3261e;
+}
+
+@media (prefers-color-scheme: dark) {
+  .ipc-card .ok {
+    color: #6ad28e;
+  }
+  .ipc-card .error {
+    color: #ff8a82;
+  }
+}
