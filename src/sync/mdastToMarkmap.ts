@@ -82,8 +82,10 @@ export function mdastToMarkmap(
 }
 
 function buildHeadingNode(node: Heading): MarkmapNode {
+  const raw = phrasingToHtml(node.children);
+  const visual = raw.replace(/\u200B/g, "\u00A0");
   return {
-    content: phrasingToHtml(node.children),
+    content: visual || "\u00A0",
     children: [],
     payload: { id: deriveId(node), mdastType: "heading" },
   };
@@ -103,8 +105,12 @@ function buildListItemNode(item: ListItem): MarkmapNode {
     }
   }
 
+  // Replace ZWSP placeholders with NBSP so the node has visible width
+  // (otherwise an "empty" placeholder node has zero width and is unclickable).
+  const visualLabel = label.replace(/\u200B/g, "\u00A0");
+
   return {
-    content: label || "(empty)",
+    content: visualLabel || "\u00A0",
     children: childNodes,
     payload: { id: deriveId(item), mdastType: "listItem" },
   };
