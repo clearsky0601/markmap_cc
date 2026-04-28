@@ -412,6 +412,32 @@ body {
   background: rgba(91, 141, 239, 0.35);
 }
 
+/* ───────── Drag-to-reorder ───────── */
+
+.drag-ghost {
+  position: fixed;
+  z-index: 2000;
+  pointer-events: none;
+  background: var(--bg-elev);
+  border: 1px solid var(--accent);
+  color: var(--fg);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 13px;
+  max-width: 240px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  opacity: 0.9;
+}
+
+.markmap-node[data-droptarget="true"] > foreignObject {
+  outline: 2px dashed var(--warn);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 /* ───────── Outline ───────── */
 
 .outline {

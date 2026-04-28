@@ -44,4 +44,8 @@ export const ipc = {
 
   removeRecent: (path: string) =>
     invoke<RecentFile[]>("remove_recent", { path }),
+
+  startWatch: (path: string) => invoke<void>("start_watch", { path }),
+
+  stopWatch: (path: string) => invoke<void>("stop_watch", { path }),
 };

@@ -246,6 +246,174 @@ export function addChildLast(
   return null;
 }
 
+export function deleteNode(
+  root: Root,
+  targetId: NodeId,
+): { root: Root; selectPath: number[] | null } | null {
+  const cloned = structuredClone(root) as Root;
+  const path = findPath(cloned, targetId);
+  if (!path || path.length === 0) return null;
+
+  const target = resolvePath(cloned, path);
+  if (!target) return null;
+
+  if (target.type === "listItem") {
+    if (path.length < 2) return null;
+    const parentPath = path.slice(0, -1);
+    const parent = resolvePath(cloned, parentPath);
+    if (!parent || parent.type !== "list") return null;
+
+    const parentList = parent as List;
+    const idxInParent = path[path.length - 1];
+
+    let selectPath: number[] | null = null;
+    if (parentList.children.length > 1) {
+      if (idxInParent + 1 < parentList.children.length) {
+        selectPath = [...parentPath, idxInParent]; // next sibling shifts down
+      } else {
+        selectPath = [...parentPath, idxInParent - 1];
+      }
+    } else {
+      const gpPath = path.slice(0, -2);
+      if (gpPath.length === 0) {
+        const listIdx = path[path.length - 2];
+        for (let i = listIdx - 1; i >= 0; i--) {
+          if ((cloned as Root).children[i].type === "heading") {
+            selectPath = [i];
+            break;
+          }
+        }
+      } else {
+        const gp = resolvePath(cloned, gpPath);
+        if (gp && gp.type === "listItem") selectPath = gpPath;
+      }
+    }
+
+    parentList.children.splice(idxInParent, 1);
+
+    if (parentList.children.length === 0) {
+      const gpPath = path.slice(0, -2);
+      const gp = resolvePath(cloned, gpPath);
+      if (gp) {
+        const gpChildren = (gp as unknown as { children?: UnistNode[] }).children;
+        if (gpChildren) gpChildren.splice(path[path.length - 2], 1);
+      }
+    }
+
+    return { root: cloned, selectPath };
+  }
+
+  if (target.type === "heading" && path.length === 1) {
+    const heading = target as Heading;
+    const rootChildren = (cloned as Root).children;
+    const targetIdx = path[0];
+    const sectionEnd = findSectionEnd(rootChildren, targetIdx, heading.depth);
+
+    let selectPath: number[] | null = null;
+    if (sectionEnd < rootChildren.length) {
+      selectPath = [targetIdx];
+    } else {
+      for (let i = targetIdx - 1; i >= 0; i--) {
+        if (rootChildren[i].type === "heading") {
+          selectPath = [i];
+          break;
+        }
+      }
+    }
+
+    rootChildren.splice(targetIdx, sectionEnd - targetIdx);
+    return { root: cloned, selectPath };
+  }
+
+  return null;
+}
+
+export function moveNodeAsChild(
+  root: Root,
+  sourceId: NodeId,
+  targetId: NodeId,
+): { root: Root; path: number[] } | null {
+  if (sourceId === targetId) return null;
+
+  const cloned = structuredClone(root) as Root;
+  const sourcePath = findPath(cloned, sourceId);
+  const targetPath = findPath(cloned, targetId);
+  if (!sourcePath || !targetPath) return null;
+
+  // Prevent moving into own subtree
+  if (
+    sourcePath.length < targetPath.length &&
+    sourcePath.every((v, i) => v === targetPath[i])
+  )
+    return null;
+
+  const source = resolvePath(cloned, sourcePath);
+  if (!source || source.type !== "listItem") return null;
+
+  const sourceParentPath = sourcePath.slice(0, -1);
+  const sourceParent = resolvePath(cloned, sourceParentPath);
+  if (!sourceParent || sourceParent.type !== "list") return null;
+
+  const sourceList = sourceParent as List;
+  const sourceIdx = sourcePath[sourcePath.length - 1];
+  const [removed] = sourceList.children.splice(sourceIdx, 1);
+
+  if (sourceList.children.length === 0) {
+    const gpPath = sourcePath.slice(0, -2);
+    const gp = resolvePath(cloned, gpPath);
+    if (gp) {
+      const gpChildren = (gp as unknown as { children?: UnistNode[] }).children;
+      if (gpChildren) gpChildren.splice(sourcePath[sourcePath.length - 2], 1);
+    }
+  }
+
+  // Re-find target after source removal (indices may have shifted)
+  const newTargetPath = findPath(cloned, targetId);
+  if (!newTargetPath) return null;
+  const target = resolvePath(cloned, newTargetPath);
+  if (!target) return null;
+
+  if (target.type === "listItem") {
+    const li = target as ListItem;
+    const last = li.children[li.children.length - 1];
+    if (last && last.type === "list") {
+      (last as List).children.push(removed);
+      return {
+        root: cloned,
+        path: [...newTargetPath, li.children.length - 1, (last as List).children.length - 1],
+      };
+    }
+    const newList = makeList([removed]);
+    li.children.push(newList);
+    return { root: cloned, path: [...newTargetPath, li.children.length - 1, 0] };
+  }
+
+  if (target.type === "heading" && newTargetPath.length === 1) {
+    const heading = target as Heading;
+    const rootChildren = (cloned as Root).children;
+    const headingIdx = newTargetPath[0];
+    const sectionEnd = findSectionEnd(rootChildren, headingIdx, heading.depth);
+
+    let lastListIdx = -1;
+    for (let i = sectionEnd - 1; i > headingIdx; i--) {
+      if (rootChildren[i].type === "list") {
+        lastListIdx = i;
+        break;
+      }
+    }
+    if (lastListIdx >= 0) {
+      const list = rootChildren[lastListIdx] as List;
+      list.children.push(removed);
+      return { root: cloned, path: [lastListIdx, list.children.length - 1] };
+    }
+    const newList = makeList([removed]);
+    rootChildren.splice(sectionEnd, 0, newList);
+    return { root: cloned, path: [sectionEnd, 0] };
+  }
+
+  return null;
+}
+
 export function outdent(
   root: Root,
   targetId: NodeId,

@@ -6,9 +6,11 @@ import { mdastToMarkmap } from "../../sync/mdastToMarkmap";
 import {
   addChildLast,
   addSiblingAfter,
+  deleteNode,
   editNodeText,
   findById,
   findPath,
+  moveNodeAsChild,
   outdent,
   plainTextOf,
   resolvePath,
@@ -43,6 +45,7 @@ export function MindmapView() {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const mmRef = useRef<Markmap | null>(null);
   const pendingFocusRef = useRef<PendingFocus | null>(null);
+  const suppressNextClickRef = useRef(false);
 
   const [selected, setSelected] = useState<string | null>(null);
   const [editing, setEditing] = useState<EditingState | null>(null);
@@ -201,7 +204,119 @@ export function MindmapView() {
       });
     });
 
+    // ── Drag-to-reorder ──────────────────────────────────────────────────
+    interface DragState {
+      sourceId: string;
+      startX: number;
+      startY: number;
+      active: boolean;
+      ghost: HTMLDivElement | null;
+      currentTargetId: string | null;
+    }
+    let drag: DragState | null = null;
+
+    const clearDropTarget = (targetId: string) => {
+      svg
+        .querySelector<SVGGElement>(
+          `g.markmap-node[data-id="${CSS.escape(targetId)}"]`,
+        )
+        ?.removeAttribute("data-droptarget");
+    };
+
+    const onMouseDown = (e: MouseEvent) => {
+      if (e.button !== 0 || editingRef.current) return;
+      const t = e.target as Element | null;
+      const g = t?.closest?.("g.markmap-node") as SVGGElement | null;
+      if (!g) return;
+      const id = g.getAttribute("data-id");
+      if (!id) return;
+      drag = {
+        sourceId: id,
+        startX: e.clientX,
+        startY: e.clientY,
+        active: false,
+        ghost: null,
+        currentTargetId: null,
+      };
+    };
+    svg.addEventListener("mousedown", onMouseDown, true);
+
+    const onMouseMove = (e: MouseEvent) => {
+      if (!drag) return;
+      const dx = e.clientX - drag.startX;
+      const dy = e.clientY - drag.startY;
+      if (!drag.active && dx * dx + dy * dy < 36) return; // < 6px threshold
+
+      if (!drag.active) {
+        drag.active = true;
+        const ghost = document.createElement("div");
+        ghost.className = "drag-ghost";
+        const sourceNode = findById(useDocStore.getState().mdast, drag.sourceId);
+        ghost.textContent = sourceNode ? plainTextOf(sourceNode) || "…" : "…";
+        document.body.appendChild(ghost);
+        drag.ghost = ghost;
+      }
+
+      if (drag.ghost) {
+        drag.ghost.style.left = `${e.clientX + 14}px`;
+        drag.ghost.style.top = `${e.clientY - 10}px`;
+      }
+
+      // Find drop target under cursor (hide ghost so elementFromPoint works)
+      if (drag.ghost) drag.ghost.style.display = "none";
+      const el = document.elementFromPoint(e.clientX, e.clientY) as Element | null;
+      if (drag.ghost) drag.ghost.style.display = "";
+
+      const targetG = el?.closest?.("g.markmap-node") as SVGGElement | null;
+      const targetId = targetG?.getAttribute("data-id") ?? null;
+      const newTarget = targetId && targetId !== drag.sourceId ? targetId : null;
+
+      if (newTarget !== drag.currentTargetId) {
+        if (drag.currentTargetId) clearDropTarget(drag.currentTargetId);
+        if (newTarget) {
+          svg
+            .querySelector<SVGGElement>(
+              `g.markmap-node[data-id="${CSS.escape(newTarget)}"]`,
+            )
+            ?.setAttribute("data-droptarget", "true");
+        }
+        drag.currentTargetId = newTarget;
+      }
+    };
+    window.addEventListener("mousemove", onMouseMove);
+
+    const onMouseUp = () => {
+      if (!drag) return;
+      const d = drag;
+      drag = null;
+      d.ghost?.remove();
+      if (d.currentTargetId) clearDropTarget(d.currentTargetId);
+
+      if (!d.active || !d.currentTargetId) return;
+      suppressNextClickRef.current = true;
+      setTimeout(() => {
+        suppressNextClickRef.current = false;
+      }, 0);
+
+      const { mdast, setMarkdown } = useDocStore.getState();
+      const result = moveNodeAsChild(mdast, d.sourceId, d.currentTargetId);
+      if (!result) return;
+      pendingFocusRef.current = {
+        path: result.path,
+        openEdit: false,
+        caretAtEnd: false,
+      };
+      setMarkdown(markdownFromMdast(result.root), "mindmap");
+    };
+    window.addEventListener("mouseup", onMouseUp);
+    // ─────────────────────────────────────────────────────────────────────
+
     const onClick = (e: MouseEvent) => {
+      if (suppressNextClickRef.current) {
+        suppressNextClickRef.current = false;
+        e.stopPropagation();
+        return;
+      }
       const t = e.target as Element | null;
       const g = t?.closest?.("g.markmap-node") as SVGGElement | null;
       if (g) {
@@ -255,6 +370,20 @@ export function MindmapView() {
       } else if (e.key === "Escape") {
         e.preventDefault();
         setSelected(null);
+      } else if (e.key === "Backspace" || e.key === "Delete") {
+        e.preventDefault();
+        const { mdast, setMarkdown } = useDocStore.getState();
+        const result = deleteNode(mdast, id);
+        if (!result) return;
+        setSelected(null);
+        if (result.selectPath) {
+          pendingFocusRef.current = {
+            path: result.selectPath,
+            openEdit: false,
+            caretAtEnd: false,
+          };
+        }
+        setMarkdown(markdownFromMdast(result.root), "mindmap");
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -267,6 +396,9 @@ export function MindmapView() {
     return () => {
       window.removeEventListener("resize", onResize);
       window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+      svg.removeEventListener("mousedown", onMouseDown, true);
       svg.removeEventListener("click", onClick, true);
       svg.removeEventListener("dblclick", onDblClick, true);
       unsubscribe();

@@ -3,6 +3,7 @@ mod error;
 
 use commands::fs as cmd_fs;
 use commands::recent as cmd_recent;
+use commands::watcher as cmd_watcher;
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -12,6 +13,9 @@ fn greet(name: &str) -> String {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(cmd_watcher::WatcherState(std::sync::Mutex::new(
+            std::collections::HashMap::new(),
+        )))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_store::Builder::default().build())
@@ -36,6 +40,8 @@ pub fn run() {
             cmd_recent::list_recent,
             cmd_recent::add_recent,
             cmd_recent::remove_recent,
+            cmd_watcher::start_watch,
+            cmd_watcher::stop_watch,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
