@@ -645,7 +645,7 @@ body {
   border-radius: 6px;
 }
 
-/* Context chip (selected nodes) */
+/* Input area wrapper */
 .ai-input-area {
   display: flex;
   flex-direction: column;
@@ -653,27 +653,48 @@ body {
   background: var(--bg-elev);
 }
 
-.ai-context {
-  padding: 7px 10px 6px;
+/* ── Quote / reference block (Cursor-style context) ── */
+.ai-quote {
+  display: flex;
   border-bottom: 1px solid var(--border);
-  background: rgba(91, 141, 239, 0.06);
+  background: rgba(91, 141, 239, 0.07);
 }
 
-.ai-context__header {
+.ai-quote__accent {
+  width: 3px;
+  flex: 0 0 3px;
+  background: var(--accent);
+  border-radius: 0 0 0 0;
+}
+
+.ai-quote__body {
+  flex: 1;
+  padding: 7px 10px 8px 10px;
+  min-width: 0;
+}
+
+.ai-quote__head {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   margin-bottom: 4px;
 }
 
-.ai-context__label {
+.ai-quote__icon {
+  font-size: 11px;
+  color: var(--accent);
+  flex: 0 0 auto;
+}
+
+.ai-quote__label {
   font-size: 10.5px;
   font-weight: 600;
   color: var(--accent);
+  letter-spacing: 0.03em;
   flex: 1;
 }
 
-.ai-context__dismiss {
+.ai-quote__dismiss {
   background: transparent;
   border: none;
   color: var(--fg-faint);
@@ -682,42 +703,27 @@ body {
   cursor: pointer;
   padding: 0 2px;
   border-radius: 3px;
-}
-
-.ai-context__dismiss:hover {
-  color: var(--fg);
-}
-
-.ai-context__items {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.ai-context__item {
-  display: flex;
-  gap: 5px;
-  align-items: baseline;
-  font-size: 11px;
-  color: var(--fg-muted);
-  min-width: 0;
-}
-
-.ai-context__dot {
-  color: var(--accent);
   flex: 0 0 auto;
 }
 
-.ai-context__text {
+.ai-quote__dismiss:hover {
+  color: var(--fg);
+}
+
+.ai-quote__line {
+  font-size: 12px;
+  color: var(--fg);
+  line-height: 1.5;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.ai-context__item--more {
+.ai-quote__more {
+  font-size: 11px;
   color: var(--fg-faint);
   font-style: italic;
-  padding-left: 10px;
+  margin-top: 2px;
 }
 
 /* Input row */

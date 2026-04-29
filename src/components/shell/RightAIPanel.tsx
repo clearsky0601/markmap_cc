@@ -71,36 +71,71 @@ Current document:
 ${currentMd}
 \`\`\`
 
+---
+
 ## Response format
 
-**Answering questions / explaining**: reply in plain text, no code block needed.
+**Answering questions / explaining** → reply in plain text, no code block.
 
-**Small targeted edits** (add, rename, delete one or a few nodes):
-Use a patch block. Separate multiple patches with \`---\`:
+**Small targeted edits** (add, rename, delete one or a few nodes) → patch block:
 \`\`\`patch
 FIND:
-<exact text copied verbatim from the document, including leading spaces and "- ">
+<exact text verbatim from document — copy character-for-character including indentation and "- ">
 REPLACE:
 <replacement text>
 \`\`\`
+Multiple patches in one block: separate with a \`---\` line.
 
-**Large structural changes** (reorganize, rewrite, merge sections):
-Output the complete updated document:
+**Large structural changes** (reorganize, rewrite, merge sections) → full document:
 \`\`\`markdown
-...full updated content...
+...complete updated content...
 \`\`\`
 
-## Critical rules
-- **Change ONLY what the user explicitly requested.** Preserve everything else exactly.
-- For FIND: copy the text character-for-character from the document, including list markers and indentation.
-- Do NOT add summaries, explanations, or extra nodes unless asked.
-- Do NOT remove or reorder content unless asked.
-- Prefer the patch format for small changes — never rewrite the whole document just to add one node.`;
+---
+
+## Markdown list nesting — CRITICAL
+
+List hierarchy is determined **entirely by indentation** (2 spaces per level):
+
+\`\`\`
+- Top-level item          (0 spaces)
+  - Child item            (2 spaces)
+    - Grandchild item     (4 spaces)
+\`\`\`
+
+**Adding a CHILD to a list item:**
+
+✗ WRONG — same indent → creates a SIBLING, not a child:
+\`\`\`
+- Phase A
+- new item      ← sibling of Phase A
+\`\`\`
+
+✓ CORRECT — 2 more spaces → creates a CHILD:
+\`\`\`
+- Phase A
+  - new item    ← child of Phase A
+\`\`\`
+
+When the parent already has children, append at the same indent as existing children:
+\`\`\`
+- Phase A
+  - existing child
+  - new child   ← same indent as "existing child"
+\`\`\`
+
+---
+
+## Strict rules
+1. **Change ONLY what was explicitly requested.** Preserve everything else exactly.
+2. FIND text must match the document character-for-character (spaces, dashes, symbols).
+3. Never add, remove, or reorder content beyond the request.
+4. Never rewrite the whole document for a small single-node change — use a patch.`;
 
   if (contextTexts.length > 0) {
-    prompt += `\n\n## User-selected context\nThe user has highlighted these node(s) as their current focus:\n`;
+    prompt += `\n\n---\n\n## User-selected nodes (current focus)\n`;
     for (const t of contextTexts) prompt += `- ${t}\n`;
-    prompt += `\nFor edits, target these nodes first. For questions, prioritize information relevant to them.`;
+    prompt += `\nApply edits to these nodes first. For questions, answer in relation to them.`;
   }
 
   return prompt;
@@ -461,32 +496,27 @@ export function RightAIPanel() {
 
       <div className="ai-input-area">
         {showContext && (
-          <div className="ai-context">
-            <div className="ai-context__header">
-              <span className="ai-context__label">
-                {contextTexts.length === 1
-                  ? "1 node selected"
-                  : `${contextTexts.length} nodes selected`}
-              </span>
-              <button
-                className="ai-context__dismiss"
-                onClick={() => setContextDismissed(true)}
-                title="Dismiss context"
-              >
-                ×
-              </button>
-            </div>
-            <div className="ai-context__items">
-              {contextTexts.slice(0, 6).map((text, i) => (
-                <div key={i} className="ai-context__item">
-                  <span className="ai-context__dot">·</span>
-                  <span className="ai-context__text">{text}</span>
-                </div>
+          <div className="ai-quote">
+            <div className="ai-quote__accent" />
+            <div className="ai-quote__body">
+              <div className="ai-quote__head">
+                <span className="ai-quote__icon">◈</span>
+                <span className="ai-quote__label">
+                  {contextTexts.length === 1 ? "Node context" : `${contextTexts.length} nodes selected`}
+                </span>
+                <button
+                  className="ai-quote__dismiss"
+                  onClick={() => setContextDismissed(true)}
+                  title="Dismiss"
+                >
+                  ×
+                </button>
+              </div>
+              {contextTexts.slice(0, 5).map((text, i) => (
+                <div key={i} className="ai-quote__line">{text}</div>
               ))}
-              {contextTexts.length > 6 && (
-                <div className="ai-context__item ai-context__item--more">
-                  +{contextTexts.length - 6} more
-                </div>
+              {contextTexts.length > 5 && (
+                <div className="ai-quote__more">+{contextTexts.length - 5} more</div>
               )}
             </div>
           </div>
