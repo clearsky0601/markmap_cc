@@ -8,11 +8,13 @@ interface UiState {
   leftOpen: boolean;
   rightOpen: boolean;
   theme: Theme;
+  selectedNodeIds: string[];
 
   setMode: (mode: ViewMode) => void;
   toggleLeft: () => void;
   toggleRight: () => void;
   setTheme: (theme: Theme) => void;
+  setSelectedNodeIds: (ids: string[]) => void;
 }
 
 export const useUiStore = create<UiState>((set) => ({
@@ -20,9 +22,11 @@ export const useUiStore = create<UiState>((set) => ({
   leftOpen: true,
   rightOpen: false,
   theme: "system",
+  selectedNodeIds: [],
 
   setMode: (mode) => set({ mode }),
   toggleLeft: () => set((s) => ({ leftOpen: !s.leftOpen })),
   toggleRight: () => set((s) => ({ rightOpen: !s.rightOpen })),
   setTheme: (theme) => set({ theme }),
+  setSelectedNodeIds: (ids) => set({ selectedNodeIds: ids }),
 }));

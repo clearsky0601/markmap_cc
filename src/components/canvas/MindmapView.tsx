@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Root } from "mdast";
 import { Markmap } from "markmap-view";
 import { useDocStore } from "../../store/docStore";
+import { useUiStore } from "../../store/uiStore";
 import { mmSvgRef } from "./mmSvgRef";
 import { mdastToMarkmap } from "../../sync/mdastToMarkmap";
 import {
@@ -37,6 +38,13 @@ interface PendingFocus {
   caretAtEnd: boolean;
 }
 
+interface BoxRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 const TRANSITION_MS = 250;
 const FOCUS_DELAY_MS = TRANSITION_MS + 30;
 
@@ -44,22 +52,34 @@ type StructuralAction = "sibling" | "child" | "outdent";
 
 export function MindmapView() {
   const svgRef = useRef<SVGSVGElement | null>(null);
-  // Publish into shared module ref so toolbar export can access it
   useEffect(() => {
     mmSvgRef.current = svgRef.current;
     return () => { mmSvgRef.current = null; };
   });
+
   const mmRef = useRef<Markmap | null>(null);
   const pendingFocusRef = useRef<PendingFocus | null>(null);
   const suppressNextClickRef = useRef(false);
+  const boxSelectStartRef = useRef<{ x: number; y: number } | null>(null);
 
+  // `selected` = primary node for keyboard ops; `multiSelected` = all highlighted nodes
   const [selected, setSelected] = useState<string | null>(null);
+  const [multiSelected, setMultiSelected] = useState<string[]>([]);
   const [editing, setEditing] = useState<EditingState | null>(null);
+  const [boxRect, setBoxRect] = useState<BoxRect | null>(null);
 
   const selectedRef = useRef<string | null>(null);
+  const multiSelectedRef = useRef<string[]>([]);
   const editingRef = useRef<EditingState | null>(null);
   selectedRef.current = selected;
+  multiSelectedRef.current = multiSelected;
   editingRef.current = editing;
+
+  // Publish multi-selection to store so AI panel can read it
+  const setSelectedNodeIds = useUiStore((s) => s.setSelectedNodeIds);
+  useEffect(() => {
+    setSelectedNodeIds(multiSelected);
+  }, [multiSelected, setSelectedNodeIds]);
 
   useEffect(() => {
     const svg = svgRef.current;
@@ -107,8 +127,9 @@ export function MindmapView() {
       svg
         .querySelectorAll<SVGGElement>("g.markmap-node[data-editing]")
         .forEach((g) => g.removeAttribute("data-editing"));
-      const selId = selectedRef.current;
-      if (selId) findG(selId)?.setAttribute("data-selected", "true");
+      for (const id of multiSelectedRef.current) {
+        findG(id)?.setAttribute("data-selected", "true");
+      }
       const editId = editingRef.current?.id;
       if (editId) findG(editId)?.setAttribute("data-editing", "true");
     };
@@ -130,6 +151,7 @@ export function MindmapView() {
       const g = findG(id);
       if (!g) return;
       setSelected(id);
+      setMultiSelected([id]);
       setEditing({
         id,
         initial: plainTextOf(target),
@@ -159,10 +181,9 @@ export function MindmapView() {
       const { mdast, setMarkdown } = useDocStore.getState();
       const result = applyStructural(mdast, id, action);
       if (!result) return;
-      const openEdit = action !== "outdent" ? true : false;
       pendingFocusRef.current = {
         path: result.path,
-        openEdit,
+        openEdit: action !== "outdent",
         caretAtEnd: true,
       };
       setMarkdown(markdownFromMdast(result.next), "mindmap");
@@ -194,13 +215,12 @@ export function MindmapView() {
           const node = resolvePath(state.mdast, pending.path);
           if (!node) return;
           const newId = deriveId(node);
-          // If user actively deselected during the transition, respect that
-          // (unless we explicitly want to open an editor on the new node).
           if (!pending.openEdit && selectedRef.current === null) {
             refreshMarks();
             return;
           }
           setSelected(newId);
+          setMultiSelected([newId]);
           if (pending.openEdit) {
             openEditorOn(newId, pending.caretAtEnd);
           } else {
@@ -233,86 +253,135 @@ export function MindmapView() {
       if (e.button !== 0 || editingRef.current) return;
       const t = e.target as Element | null;
       const g = t?.closest?.("g.markmap-node") as SVGGElement | null;
-      if (!g) return;
-      const id = g.getAttribute("data-id");
-      if (!id) return;
-      drag = {
-        sourceId: id,
-        startX: e.clientX,
-        startY: e.clientY,
-        active: false,
-        ghost: null,
-        currentTargetId: null,
-      };
+      if (g) {
+        // Node click → potential drag-to-reorder
+        const id = g.getAttribute("data-id");
+        if (!id) return;
+        drag = {
+          sourceId: id,
+          startX: e.clientX,
+          startY: e.clientY,
+          active: false,
+          ghost: null,
+          currentTargetId: null,
+        };
+      } else {
+        // Background click → potential box selection
+        boxSelectStartRef.current = { x: e.clientX, y: e.clientY };
+      }
     };
     svg.addEventListener("mousedown", onMouseDown, true);
 
     const onMouseMove = (e: MouseEvent) => {
-      if (!drag) return;
-      const dx = e.clientX - drag.startX;
-      const dy = e.clientY - drag.startY;
-      if (!drag.active && dx * dx + dy * dy < 36) return; // < 6px threshold
+      if (drag) {
+        // Drag-to-reorder
+        const dx = e.clientX - drag.startX;
+        const dy = e.clientY - drag.startY;
+        if (!drag.active && dx * dx + dy * dy < 36) return;
 
-      if (!drag.active) {
-        drag.active = true;
-        const ghost = document.createElement("div");
-        ghost.className = "drag-ghost";
-        const sourceNode = findById(useDocStore.getState().mdast, drag.sourceId);
-        ghost.textContent = sourceNode ? plainTextOf(sourceNode) || "…" : "…";
-        document.body.appendChild(ghost);
-        drag.ghost = ghost;
-      }
-
-      if (drag.ghost) {
-        drag.ghost.style.left = `${e.clientX + 14}px`;
-        drag.ghost.style.top = `${e.clientY - 10}px`;
-      }
-
-      // Find drop target under cursor (hide ghost so elementFromPoint works)
-      if (drag.ghost) drag.ghost.style.display = "none";
-      const el = document.elementFromPoint(e.clientX, e.clientY) as Element | null;
-      if (drag.ghost) drag.ghost.style.display = "";
-
-      const targetG = el?.closest?.("g.markmap-node") as SVGGElement | null;
-      const targetId = targetG?.getAttribute("data-id") ?? null;
-      const newTarget = targetId && targetId !== drag.sourceId ? targetId : null;
-
-      if (newTarget !== drag.currentTargetId) {
-        if (drag.currentTargetId) clearDropTarget(drag.currentTargetId);
-        if (newTarget) {
-          svg
-            .querySelector<SVGGElement>(
-              `g.markmap-node[data-id="${CSS.escape(newTarget)}"]`,
-            )
-            ?.setAttribute("data-droptarget", "true");
+        if (!drag.active) {
+          drag.active = true;
+          const ghost = document.createElement("div");
+          ghost.className = "drag-ghost";
+          const sourceNode = findById(useDocStore.getState().mdast, drag.sourceId);
+          ghost.textContent = sourceNode ? plainTextOf(sourceNode) || "…" : "…";
+          document.body.appendChild(ghost);
+          drag.ghost = ghost;
         }
-        drag.currentTargetId = newTarget;
+
+        if (drag.ghost) {
+          drag.ghost.style.left = `${e.clientX + 14}px`;
+          drag.ghost.style.top = `${e.clientY - 10}px`;
+        }
+
+        if (drag.ghost) drag.ghost.style.display = "none";
+        const el = document.elementFromPoint(e.clientX, e.clientY) as Element | null;
+        if (drag.ghost) drag.ghost.style.display = "";
+
+        const targetG = el?.closest?.("g.markmap-node") as SVGGElement | null;
+        const targetId = targetG?.getAttribute("data-id") ?? null;
+        const newTarget = targetId && targetId !== drag.sourceId ? targetId : null;
+
+        if (newTarget !== drag.currentTargetId) {
+          if (drag.currentTargetId) clearDropTarget(drag.currentTargetId);
+          if (newTarget) {
+            svg
+              .querySelector<SVGGElement>(
+                `g.markmap-node[data-id="${CSS.escape(newTarget)}"]`,
+              )
+              ?.setAttribute("data-droptarget", "true");
+          }
+          drag.currentTargetId = newTarget;
+        }
+      } else if (boxSelectStartRef.current) {
+        // Box selection
+        const s = boxSelectStartRef.current;
+        const dx = e.clientX - s.x;
+        const dy = e.clientY - s.y;
+        if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
+          setBoxRect({
+            x: Math.min(s.x, e.clientX),
+            y: Math.min(s.y, e.clientY),
+            w: Math.abs(dx),
+            h: Math.abs(dy),
+          });
+        }
       }
     };
     window.addEventListener("mousemove", onMouseMove);
 
-    const onMouseUp = () => {
-      if (!drag) return;
-      const d = drag;
-      drag = null;
-      d.ghost?.remove();
-      if (d.currentTargetId) clearDropTarget(d.currentTargetId);
+    const onMouseUp = (e: MouseEvent) => {
+      if (drag) {
+        const d = drag;
+        drag = null;
+        d.ghost?.remove();
+        if (d.currentTargetId) clearDropTarget(d.currentTargetId);
 
-      if (!d.active || !d.currentTargetId) return;
-      suppressNextClickRef.current = true;
-      setTimeout(() => {
-        suppressNextClickRef.current = false;
-      }, 0);
+        if (!d.active || !d.currentTargetId) return;
+        suppressNextClickRef.current = true;
+        setTimeout(() => { suppressNextClickRef.current = false; }, 0);
 
-      const { mdast, setMarkdown } = useDocStore.getState();
-      const result = moveNodeAsChild(mdast, d.sourceId, d.currentTargetId);
-      if (!result) return;
-      pendingFocusRef.current = {
-        path: result.path,
-        openEdit: false,
-        caretAtEnd: false,
-      };
-      setMarkdown(markdownFromMdast(result.root), "mindmap");
+        const { mdast, setMarkdown } = useDocStore.getState();
+        const result = moveNodeAsChild(mdast, d.sourceId, d.currentTargetId);
+        if (!result) return;
+        pendingFocusRef.current = {
+          path: result.path,
+          openEdit: false,
+          caretAtEnd: false,
+        };
+        setMarkdown(markdownFromMdast(result.root), "mindmap");
+      } else if (boxSelectStartRef.current) {
+        const s = boxSelectStartRef.current;
+        boxSelectStartRef.current = null;
+        setBoxRect(null);
+
+        const box = {
+          left: Math.min(s.x, e.clientX),
+          top: Math.min(s.y, e.clientY),
+          right: Math.max(s.x, e.clientX),
+          bottom: Math.max(s.y, e.clientY),
+        };
+
+        // Only activate if dragged at least 6px
+        if (box.right - box.left < 6 && box.bottom - box.top < 6) return;
+
+        const hitIds: string[] = [];
+        svg.querySelectorAll<SVGGElement>("g.markmap-node[data-id]").forEach((g) => {
+          const r = g.getBoundingClientRect();
+          if (r.right > box.left && r.left < box.right &&
+              r.bottom > box.top && r.top < box.bottom) {
+            const id = g.getAttribute("data-id");
+            if (id) hitIds.push(id);
+          }
+        });
+
+        if (hitIds.length > 0) {
+          suppressNextClickRef.current = true;
+          setTimeout(() => { suppressNextClickRef.current = false; }, 0);
+          setSelected(null);
+          setMultiSelected(hitIds);
+        }
+      }
     };
     window.addEventListener("mouseup", onMouseUp);
     // ─────────────────────────────────────────────────────────────────────
@@ -327,9 +396,13 @@ export function MindmapView() {
       const g = t?.closest?.("g.markmap-node") as SVGGElement | null;
       if (g) {
         const id = g.getAttribute("data-id");
-        if (id) setSelected(id);
+        if (id) {
+          setSelected(id);
+          setMultiSelected([id]);
+        }
       } else {
         setSelected(null);
+        setMultiSelected([]);
       }
       e.stopPropagation();
     };
@@ -376,12 +449,14 @@ export function MindmapView() {
       } else if (e.key === "Escape") {
         e.preventDefault();
         setSelected(null);
+        setMultiSelected([]);
       } else if (e.key === "Backspace" || e.key === "Delete") {
         e.preventDefault();
         const { mdast, setMarkdown } = useDocStore.getState();
         const result = deleteNode(mdast, id);
         if (!result) return;
         setSelected(null);
+        setMultiSelected([]);
         if (result.selectPath) {
           pendingFocusRef.current = {
             path: result.selectPath,
@@ -394,9 +469,7 @@ export function MindmapView() {
     };
     window.addEventListener("keydown", onKeyDown);
 
-    const onResize = () => {
-      void mm.fit();
-    };
+    const onResize = () => { void mm.fit(); };
     window.addEventListener("resize", onResize);
 
     return () => {
@@ -413,20 +486,21 @@ export function MindmapView() {
     };
   }, []);
 
+  // Apply data-selected marks whenever multiSelected changes
   useEffect(() => {
     const svg = svgRef.current;
     if (!svg) return;
     svg
       .querySelectorAll<SVGGElement>("g.markmap-node[data-selected]")
       .forEach((g) => g.removeAttribute("data-selected"));
-    if (selected) {
+    for (const id of multiSelected) {
       svg
         .querySelector<SVGGElement>(
-          `g.markmap-node[data-id="${CSS.escape(selected)}"]`,
+          `g.markmap-node[data-id="${CSS.escape(id)}"]`,
         )
         ?.setAttribute("data-selected", "true");
     }
-  }, [selected]);
+  }, [multiSelected]);
 
   useEffect(() => {
     const svg = svgRef.current;
@@ -474,16 +548,11 @@ export function MindmapView() {
     }
 
     setEditing(null);
-
     if (next === mdast) return;
 
     const focusPath = structural ? structural.path : findPath(next, id);
     if (focusPath) {
-      pendingFocusRef.current = {
-        path: focusPath,
-        openEdit,
-        caretAtEnd,
-      };
+      pendingFocusRef.current = { path: focusPath, openEdit, caretAtEnd };
     }
     setMarkdown(markdownFromMdast(next), "mindmap");
   };
@@ -493,6 +562,17 @@ export function MindmapView() {
   return (
     <div className="mm-host">
       <svg ref={svgRef} className="mm-svg" tabIndex={-1} />
+      {boxRect ? (
+        <div
+          className="box-select"
+          style={{
+            left: boxRect.x,
+            top: boxRect.y,
+            width: boxRect.w,
+            height: boxRect.h,
+          }}
+        />
+      ) : null}
       {editing ? (
         <NodeEditOverlay
           key={editing.id}

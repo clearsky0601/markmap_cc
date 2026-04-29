@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useDocStore } from "../../store/docStore";
+import { useUiStore } from "../../store/uiStore";
+import { findById, plainTextOf } from "../../sync/mutations";
 import { ipc } from "../../tauri/ipc";
 
 // ── Config ────────────────────────────────────────────────────────────
@@ -61,8 +63,8 @@ function saveConfig(cfg: AIConfig) {
 
 // ── Prompt ────────────────────────────────────────────────────────────
 
-function buildSystemPrompt(currentMd: string): string {
-  return `You are a mindmap editing assistant. The mindmap is stored as Markdown (headings + bullet lists).
+function buildSystemPrompt(currentMd: string, contextTexts: string[]): string {
+  let prompt = `You are a mindmap editing assistant. The mindmap is stored as Markdown (headings + bullet lists).
 
 Current document:
 \`\`\`markdown
@@ -93,7 +95,15 @@ Output the complete updated document:
 - For FIND: copy the text character-for-character from the document, including list markers and indentation.
 - Do NOT add summaries, explanations, or extra nodes unless asked.
 - Do NOT remove or reorder content unless asked.
-- Keep the patch format for small changes — never rewrite the whole document just to add one node.`;
+- Prefer the patch format for small changes — never rewrite the whole document just to add one node.`;
+
+  if (contextTexts.length > 0) {
+    prompt += `\n\n## User-selected context\nThe user has highlighted these node(s) as their current focus:\n`;
+    for (const t of contextTexts) prompt += `- ${t}\n`;
+    prompt += `\nFor edits, target these nodes first. For questions, prioritize information relevant to them.`;
+  }
+
+  return prompt;
 }
 
 // ── Patch handling ─────────────────────────────────────────────────────
@@ -283,9 +293,24 @@ export function RightAIPanel() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [contextDismissed, setContextDismissed] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const setMarkdown = useDocStore((s) => s.setMarkdown);
+  const mdast = useDocStore((s) => s.mdast);
+  const selectedNodeIds = useUiStore((s) => s.selectedNodeIds);
+
+  // Reset dismissed chip whenever the selection changes
+  useEffect(() => { setContextDismissed(false); }, [selectedNodeIds]);
+
+  const contextTexts = selectedNodeIds
+    .map((id) => {
+      const node = findById(mdast, id);
+      return node ? plainTextOf(node) : null;
+    })
+    .filter((t): t is string => t !== null && t.trim().length > 0);
+
+  const showContext = !contextDismissed && contextTexts.length > 0;
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -329,7 +354,10 @@ export function RightAIPanel() {
     setLoading(true);
 
     const currentMd = useDocStore.getState().markdownText;
-    const systemContent = buildSystemPrompt(currentMd);
+    const systemContent = buildSystemPrompt(
+      currentMd,
+      showContext ? contextTexts : [],
+    );
 
     const apiMessages = [
       { role: "system", content: systemContent },
@@ -431,24 +459,57 @@ export function RightAIPanel() {
         {error ? <div className="ai-error">{error}</div> : null}
       </div>
 
-      <div className="ai-input-row">
-        <textarea
-          className="ai-input"
-          placeholder="Ask anything…"
-          value={input}
-          rows={2}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={onKeyDown}
-          disabled={loading}
-        />
-        <button
-          className="ai-send"
-          onClick={() => void send()}
-          disabled={loading || !input.trim()}
-          title="Send (Enter)"
-        >
-          ↑
-        </button>
+      <div className="ai-input-area">
+        {showContext && (
+          <div className="ai-context">
+            <div className="ai-context__header">
+              <span className="ai-context__label">
+                {contextTexts.length === 1
+                  ? "1 node selected"
+                  : `${contextTexts.length} nodes selected`}
+              </span>
+              <button
+                className="ai-context__dismiss"
+                onClick={() => setContextDismissed(true)}
+                title="Dismiss context"
+              >
+                ×
+              </button>
+            </div>
+            <div className="ai-context__items">
+              {contextTexts.slice(0, 6).map((text, i) => (
+                <div key={i} className="ai-context__item">
+                  <span className="ai-context__dot">·</span>
+                  <span className="ai-context__text">{text}</span>
+                </div>
+              ))}
+              {contextTexts.length > 6 && (
+                <div className="ai-context__item ai-context__item--more">
+                  +{contextTexts.length - 6} more
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+        <div className="ai-input-row">
+          <textarea
+            className="ai-input"
+            placeholder={showContext ? "Ask about selected nodes…" : "Ask anything…"}
+            value={input}
+            rows={2}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={onKeyDown}
+            disabled={loading}
+          />
+          <button
+            className="ai-send"
+            onClick={() => void send()}
+            disabled={loading || !input.trim()}
+            title="Send (Enter)"
+          >
+            ↑
+          </button>
+        </div>
       </div>
     </aside>
   );
