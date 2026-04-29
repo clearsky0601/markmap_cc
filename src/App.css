@@ -372,21 +372,75 @@ body {
   background: var(--bg-soft);
 }
 
-/* Setup screen */
-.ai-setup {
-  padding: 16px;
+/* Model label next to heading */
+.ai-panel__model {
+  font-size: 10px;
+  color: var(--fg-faint);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100px;
+}
+
+/* Config panel */
+.ai-config {
+  padding: 14px 14px 20px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
-.ai-setup__desc {
-  margin: 0;
+.ai-config__title {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.ai-config__presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 4px;
+}
+
+.ai-config__preset {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--bg-soft);
   color: var(--fg-muted);
-  line-height: 1.5;
+  border-radius: 5px;
+  padding: 3px 9px;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
 }
 
-.ai-setup__input {
+.ai-config__preset:hover {
+  color: var(--fg);
+  border-color: var(--accent);
+}
+
+.ai-config__preset.is-on {
+  background: rgba(91, 141, 239, 0.12);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.ai-config__label {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--fg-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-top: 4px;
+}
+
+.ai-config__input {
   width: 100%;
   box-sizing: border-box;
   background: var(--bg-elev);
@@ -395,37 +449,50 @@ body {
   color: var(--fg);
   font: inherit;
   font-size: 12px;
-  padding: 7px 10px;
+  padding: 6px 10px;
   outline: none;
 }
 
-.ai-setup__input:focus {
+.ai-config__input:focus {
   border-color: var(--accent);
 }
 
-.ai-setup__btn {
-  align-self: flex-start;
+.ai-config__hint {
+  margin: 4px 0 0;
+  color: var(--fg-faint);
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+.ai-config__hint code {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 10px;
+  background: var(--bg-soft);
+  padding: 1px 3px;
+  border-radius: 3px;
+}
+
+.ai-config__save {
+  margin-top: 6px;
+  align-self: stretch;
   background: var(--accent);
   border: none;
-  border-radius: 6px;
+  border-radius: 7px;
   color: #fff;
   font: inherit;
   font-size: 12px;
   font-weight: 600;
-  padding: 6px 14px;
+  padding: 8px 14px;
   cursor: pointer;
 }
 
-.ai-setup__btn:disabled {
+.ai-config__save:disabled {
   opacity: 0.4;
   cursor: default;
 }
 
-.ai-setup__hint {
-  margin: 0;
-  color: var(--fg-faint);
-  font-size: 10.5px;
-  line-height: 1.5;
+.ai-config__save:not(:disabled):hover {
+  opacity: 0.88;
 }
 
 /* Chat area */

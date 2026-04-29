@@ -50,8 +50,9 @@ export const ipc = {
   stopWatch: (path: string) => invoke<void>("stop_watch", { path }),
 
   askAi: (
+    baseUrl: string,
     apiKey: string,
-    system: string,
+    model: string,
     messages: { role: string; content: string }[],
-  ) => invoke<string>("ask_ai", { apiKey, system, messages }),
+  ) => invoke<string>("ask_ai", { baseUrl, apiKey, model, messages }),
 };

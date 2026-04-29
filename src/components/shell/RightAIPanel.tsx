@@ -2,29 +2,157 @@ import { useEffect, useRef, useState } from "react";
 import { useDocStore } from "../../store/docStore";
 import { ipc } from "../../tauri/ipc";
 
-const API_KEY_STORAGE = "markmap_cc_api_key";
+// ── Config ────────────────────────────────────────────────────────────
+
+const CONFIG_KEY = "markmap_cc_ai_config_v2";
+
+interface AIConfig {
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+}
+
+const PRESETS: { label: string; baseUrl: string; model: string; hint: string }[] = [
+  {
+    label: "OpenAI",
+    baseUrl: "https://api.openai.com",
+    model: "gpt-4o",
+    hint: "platform.openai.com → API keys",
+  },
+  {
+    label: "Anthropic",
+    baseUrl: "https://api.anthropic.com/v1",
+    model: "claude-sonnet-4-6",
+    hint: "console.anthropic.com → API keys",
+  },
+  {
+    label: "DeepSeek",
+    baseUrl: "https://api.deepseek.com",
+    model: "deepseek-chat",
+    hint: "platform.deepseek.com → API keys",
+  },
+  {
+    label: "Groq",
+    baseUrl: "https://api.groq.com/openai",
+    model: "llama-3.3-70b-versatile",
+    hint: "console.groq.com → API keys",
+  },
+  {
+    label: "Ollama",
+    baseUrl: "http://localhost:11434",
+    model: "llama3.2",
+    hint: "No API key needed for local Ollama",
+  },
+];
+
+function loadConfig(): AIConfig | null {
+  try {
+    const raw = localStorage.getItem(CONFIG_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as AIConfig;
+  } catch {
+    return null;
+  }
+}
+
+function saveConfig(cfg: AIConfig) {
+  localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg));
+}
+
+// ── Markdown extraction ────────────────────────────────────────────────
+
+function extractMarkdown(text: string): string | null {
+  const m = text.match(/```(?:markdown)?\n([\s\S]*?)```/);
+  return m ? m[1].trimEnd() : null;
+}
+
+// ── Sub-components ─────────────────────────────────────────────────────
+
+interface ConfigPanelProps {
+  initial: AIConfig;
+  onSave: (cfg: AIConfig) => void;
+}
+
+function ConfigPanel({ initial, onSave }: ConfigPanelProps) {
+  const [baseUrl, setBaseUrl] = useState(initial.baseUrl);
+  const [apiKey, setApiKey] = useState(initial.apiKey);
+  const [model, setModel] = useState(initial.model);
+
+  const applyPreset = (p: (typeof PRESETS)[number]) => {
+    setBaseUrl(p.baseUrl);
+    setModel(p.model);
+  };
+
+  const valid = baseUrl.trim().length > 0 && model.trim().length > 0;
+
+  return (
+    <div className="ai-config">
+      <p className="ai-config__title">AI Provider Settings</p>
+
+      <div className="ai-config__presets">
+        {PRESETS.map((p) => (
+          <button
+            key={p.label}
+            className={`ai-config__preset${baseUrl === p.baseUrl ? " is-on" : ""}`}
+            onClick={() => applyPreset(p)}
+            title={p.hint}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+
+      <label className="ai-config__label">Base URL</label>
+      <input
+        className="ai-config__input"
+        value={baseUrl}
+        onChange={(e) => setBaseUrl(e.target.value)}
+        placeholder="https://api.openai.com"
+        spellCheck={false}
+      />
+
+      <label className="ai-config__label">Model</label>
+      <input
+        className="ai-config__input"
+        value={model}
+        onChange={(e) => setModel(e.target.value)}
+        placeholder="gpt-4o"
+        spellCheck={false}
+      />
+
+      <label className="ai-config__label">API Key</label>
+      <input
+        className="ai-config__input"
+        type="password"
+        value={apiKey}
+        onChange={(e) => setApiKey(e.target.value)}
+        placeholder="sk-… (leave empty for local providers)"
+        spellCheck={false}
+      />
+
+      <p className="ai-config__hint">
+        Uses OpenAI-compatible <code>/chat/completions</code> endpoint.
+        Key stored in browser localStorage only.
+      </p>
+
+      <button
+        className="ai-config__save"
+        disabled={!valid}
+        onClick={() => onSave({ baseUrl: baseUrl.trim(), apiKey, model: model.trim() })}
+      >
+        Save & start chatting
+      </button>
+    </div>
+  );
+}
 
 interface Message {
   role: "user" | "assistant";
   content: string;
 }
 
-// Extract the first ```markdown ... ``` block from a string
-function extractMarkdown(text: string): string | null {
-  const m = text.match(/```(?:markdown)?\n([\s\S]*?)```/);
-  return m ? m[1].trimEnd() : null;
-}
-
-function MessageBubble({
-  msg,
-  onApply,
-}: {
-  msg: Message;
-  onApply: (md: string) => void;
-}) {
-  const md = msg.role === "assistant" ? extractMarkdown(msg.content) : null;
-
-  // Split content so we can render code blocks distinctly
+function MessageBubble({ msg, onApply }: { msg: Message; onApply: (md: string) => void }) {
+  const applyMd = msg.role === "assistant" ? extractMarkdown(msg.content) : null;
   const parts = msg.content.split(/(```(?:markdown)?\n[\s\S]*?```)/g);
 
   return (
@@ -46,8 +174,8 @@ function MessageBubble({
           ) : null;
         })}
       </div>
-      {md ? (
-        <button className="ai-msg__apply" onClick={() => onApply(md)}>
+      {applyMd ? (
+        <button className="ai-msg__apply" onClick={() => onApply(applyMd)}>
           Apply to document
         </button>
       ) : null}
@@ -55,72 +183,71 @@ function MessageBubble({
   );
 }
 
+// ── Main panel ─────────────────────────────────────────────────────────
+
 export function RightAIPanel() {
-  const [apiKey, setApiKey] = useState<string>(
-    () => localStorage.getItem(API_KEY_STORAGE) ?? "",
-  );
-  const [keyDraft, setKeyDraft] = useState("");
+  const [config, setConfig] = useState<AIConfig | null>(loadConfig);
+  const [showConfig, setShowConfig] = useState(!loadConfig());
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const setMarkdown = useDocStore((s) => s.setMarkdown);
 
-  const scrollToBottom = () => {
+  useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  };
+  }, [messages, loading]);
 
-  useEffect(scrollToBottom, [messages, loading]);
-
-  const saveKey = () => {
-    const k = keyDraft.trim();
-    if (!k) return;
-    localStorage.setItem(API_KEY_STORAGE, k);
-    setApiKey(k);
-    setKeyDraft("");
-  };
-
-  const clearKey = () => {
-    localStorage.removeItem(API_KEY_STORAGE);
-    setApiKey("");
+  const handleSaveConfig = (cfg: AIConfig) => {
+    saveConfig(cfg);
+    setConfig(cfg);
+    setShowConfig(false);
     setMessages([]);
     setError(null);
   };
 
-  const applyMarkdown = (md: string) => {
-    setMarkdown(md, "editor");
-  };
+  const applyMarkdown = (md: string) => setMarkdown(md, "editor");
 
   const send = async () => {
     const text = input.trim();
-    if (!text || loading || !apiKey) return;
+    if (!text || loading || !config) return;
     setInput("");
     setError(null);
 
-    const newMessages: Message[] = [
-      ...messages,
-      { role: "user", content: text },
-    ];
-    setMessages(newMessages);
+    const userMsg: Message = { role: "user", content: text };
+    const nextMessages: Message[] = [...messages, userMsg];
+    setMessages(nextMessages);
     setLoading(true);
 
     const currentMd = useDocStore.getState().markdownText;
-    const system = `You are an AI assistant helping the user edit a mindmap stored as Markdown.
+    const systemContent =
+      `You are an AI assistant helping the user edit a mindmap stored as Markdown.\n\n` +
+      `Current document:\n\`\`\`markdown\n${currentMd}\n\`\`\`\n\n` +
+      `When the user asks you to modify the mindmap, respond with the complete updated ` +
+      `Markdown inside a \`\`\`markdown code block. ` +
+      `When answering questions, respond normally without a code block. Keep answers concise.`;
 
-Current document:
-\`\`\`markdown
-${currentMd}
-\`\`\`
-
-When the user asks you to modify the mindmap, respond with the complete updated Markdown in a \`\`\`markdown code block. When answering questions or explaining things, respond normally without a code block. Keep answers concise.`;
+    const apiMessages = [
+      { role: "system", content: systemContent },
+      ...nextMessages,
+    ];
 
     try {
-      const reply = await ipc.askAi(apiKey, system, newMessages);
+      const reply = await ipc.askAi(
+        config.baseUrl,
+        config.apiKey,
+        config.model,
+        apiMessages,
+      );
       setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
     } catch (e) {
       setError(String(e));
+      // Remove the optimistically added user message on hard error
+      setMessages((prev) => prev.slice(0, -1));
     } finally {
       setLoading(false);
     }
@@ -133,49 +260,46 @@ When the user asks you to modify the mindmap, respond with the complete updated 
     }
   };
 
-  // ── No API key: show setup screen ──────────────────────────────────
-  if (!apiKey) {
+  // Config view
+  if (showConfig) {
     return (
       <aside className="ai-panel">
-        <div className="ai-panel__heading">AI Assistant</div>
-        <div className="ai-setup">
-          <p className="ai-setup__desc">
-            Enter your Anthropic API key to enable AI-powered mindmap editing.
-          </p>
-          <input
-            className="ai-setup__input"
-            type="password"
-            placeholder="sk-ant-…"
-            value={keyDraft}
-            onChange={(e) => setKeyDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") saveKey();
-            }}
-            autoFocus
+        <div className="ai-panel__heading">
+          AI Settings
+          {config && (
+            <button
+              className="ai-panel__clear-key"
+              onClick={() => setShowConfig(false)}
+              title="Back to chat"
+            >
+              ← back
+            </button>
+          )}
+        </div>
+        <div className="ai-chat" style={{ overflowY: "auto" }}>
+          <ConfigPanel
+            initial={config ?? { baseUrl: "", apiKey: "", model: "" }}
+            onSave={handleSaveConfig}
           />
-          <button
-            className="ai-setup__btn"
-            onClick={saveKey}
-            disabled={!keyDraft.trim()}
-          >
-            Save key
-          </button>
-          <p className="ai-setup__hint">
-            Key is stored in browser localStorage, never sent anywhere except
-            Anthropic's API.
-          </p>
         </div>
       </aside>
     );
   }
 
-  // ── Chat interface ─────────────────────────────────────────────────
+  // Chat view
   return (
     <aside className="ai-panel">
       <div className="ai-panel__heading">
         AI
-        <button className="ai-panel__clear-key" onClick={clearKey} title="Remove API key">
-          ✕ key
+        <span className="ai-panel__model" title={config?.baseUrl}>
+          {config?.model ?? ""}
+        </span>
+        <button
+          className="ai-panel__clear-key"
+          onClick={() => setShowConfig(true)}
+          title="Configure provider"
+        >
+          ⚙
         </button>
       </div>
 
@@ -184,9 +308,7 @@ When the user asks you to modify the mindmap, respond with the complete updated 
           <div className="ai-chat__empty">
             Ask me to edit, expand, or summarize your mindmap.
             <br />
-            <span className="ai-chat__hint">
-              Shift+Enter for newline · Enter to send
-            </span>
+            <span className="ai-chat__hint">Enter to send · Shift+Enter for newline</span>
           </div>
         ) : null}
 
@@ -202,9 +324,7 @@ When the user asks you to modify the mindmap, respond with the complete updated 
           </div>
         ) : null}
 
-        {error ? (
-          <div className="ai-error">{error}</div>
-        ) : null}
+        {error ? <div className="ai-error">{error}</div> : null}
       </div>
 
       <div className="ai-input-row">
