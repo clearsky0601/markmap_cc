@@ -830,10 +830,16 @@ body {
 .box-select {
   position: fixed;
   pointer-events: none;
-  border: 1.5px dashed var(--accent);
-  background: rgba(91, 141, 239, 0.08);
+  border: 1.5px solid var(--accent);
+  background: rgba(91, 141, 239, 0.1);
   border-radius: 3px;
   z-index: 100;
+}
+
+/* Prevent text-selection cursor while drawing a box */
+.mm-host.is-box-selecting {
+  user-select: none;
+  cursor: crosshair;
 }
 
 .mm-svg {

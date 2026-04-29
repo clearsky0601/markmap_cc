@@ -266,7 +266,10 @@ export function MindmapView() {
           currentTargetId: null,
         };
       } else {
-        // Background click → potential box selection
+        // Background click → box selection.
+        // stopPropagation prevents d3-zoom (markmap pan) from seeing this mousedown.
+        e.stopPropagation();
+        e.preventDefault();
         boxSelectStartRef.current = { x: e.clientX, y: e.clientY };
       }
     };
@@ -314,11 +317,11 @@ export function MindmapView() {
           drag.currentTargetId = newTarget;
         }
       } else if (boxSelectStartRef.current) {
-        // Box selection
+        // Box selection — draw rect immediately (1 px threshold avoids single-pixel jitter)
         const s = boxSelectStartRef.current;
         const dx = e.clientX - s.x;
         const dy = e.clientY - s.y;
-        if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
+        if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
           setBoxRect({
             x: Math.min(s.x, e.clientX),
             y: Math.min(s.y, e.clientY),
@@ -362,8 +365,8 @@ export function MindmapView() {
           bottom: Math.max(s.y, e.clientY),
         };
 
-        // Only activate if dragged at least 6px
-        if (box.right - box.left < 6 && box.bottom - box.top < 6) return;
+        // Ignore tiny accidental drags (< 4px in both axes)
+        if (box.right - box.left < 4 && box.bottom - box.top < 4) return;
 
         const hitIds: string[] = [];
         svg.querySelectorAll<SVGGElement>("g.markmap-node[data-id]").forEach((g) => {
@@ -394,13 +397,24 @@ export function MindmapView() {
       }
       const t = e.target as Element | null;
       const g = t?.closest?.("g.markmap-node") as SVGGElement | null;
+      const cmdHeld = e.metaKey || e.ctrlKey;
+
       if (g) {
         const id = g.getAttribute("data-id");
         if (id) {
-          setSelected(id);
-          setMultiSelected([id]);
+          if (cmdHeld) {
+            // Cmd+Click: toggle node in multi-selection
+            setMultiSelected((prev) =>
+              prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+            );
+            setSelected(id); // keep for keyboard ops
+          } else {
+            setSelected(id);
+            setMultiSelected([id]);
+          }
         }
-      } else {
+      } else if (!cmdHeld) {
+        // Plain click on empty canvas clears selection; Cmd+click on empty does nothing
         setSelected(null);
         setMultiSelected([]);
       }
@@ -560,7 +574,7 @@ export function MindmapView() {
   const cancelEdit = () => setEditing(null);
 
   return (
-    <div className="mm-host">
+    <div className={`mm-host${boxRect ? " is-box-selecting" : ""}`}>
       <svg ref={svgRef} className="mm-svg" tabIndex={-1} />
       {boxRect ? (
         <div
