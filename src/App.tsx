@@ -6,15 +6,23 @@ import { LeftFileTree } from "./components/shell/LeftFileTree";
 import { RightAIPanel } from "./components/shell/RightAIPanel";
 import { useAutosave } from "./hooks/useAutosave";
 import { useDocStore } from "./store/docStore";
-import { useUiStore } from "./store/uiStore";
+import { useUiStore, type Theme } from "./store/uiStore";
 import { ipc } from "./tauri/ipc";
 import "./App.css";
+
+function applyTheme(theme: Theme) {
+  const root = document.documentElement;
+  root.removeAttribute("data-theme");
+  if (theme !== "system") root.setAttribute("data-theme", theme);
+}
 
 function App() {
   useAutosave();
   const leftOpen = useUiStore((s) => s.leftOpen);
   const rightOpen = useUiStore((s) => s.rightOpen);
   const filePath = useDocStore((s) => s.filePath);
+  const theme = useUiStore((s) => s.theme);
+  useEffect(() => applyTheme(theme), [theme]);
 
   // Start/stop file watcher when the open file changes
   useEffect(() => {

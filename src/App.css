@@ -25,6 +25,31 @@
   }
 }
 
+/* Explicit theme overrides (set via toolbar) */
+[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f7f7f8;
+  --bg-elev: #ffffff;
+  --bg-soft: #f0f0f2;
+  --fg: #1d1d1f;
+  --fg-muted: rgba(29, 29, 31, 0.62);
+  --fg-faint: rgba(29, 29, 31, 0.4);
+  --border: rgba(0, 0, 0, 0.1);
+  --accent: #5b8def;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #1a1a1c;
+  --bg-elev: #232326;
+  --bg-soft: #1f1f22;
+  --fg: #f1f1f3;
+  --fg-muted: rgba(241, 241, 243, 0.6);
+  --fg-faint: rgba(241, 241, 243, 0.38);
+  --border: rgba(255, 255, 255, 0.08);
+  --accent: #7aa2ff;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue",
     Arial, sans-serif;
@@ -340,6 +365,43 @@ body {
 .ai-panel__hint {
   color: var(--fg-faint);
   font-size: 11px;
+}
+
+/* ───────── Export dropdown ───────── */
+
+.toolbar__dropdown {
+  position: relative;
+  -webkit-app-region: no-drag;
+}
+
+.toolbar__menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 110px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  z-index: 500;
+}
+
+.toolbar__menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 12px;
+  padding: 7px 14px;
+  cursor: pointer;
+}
+
+.toolbar__menu-item:hover {
+  background: var(--bg-soft);
 }
 
 /* ───────── Editor + Mindmap hosts ───────── */

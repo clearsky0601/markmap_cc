@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Root } from "mdast";
 import { Markmap } from "markmap-view";
 import { useDocStore } from "../../store/docStore";
+import { mmSvgRef } from "./mmSvgRef";
 import { mdastToMarkmap } from "../../sync/mdastToMarkmap";
 import {
   addChildLast,
@@ -43,6 +44,11 @@ type StructuralAction = "sibling" | "child" | "outdent";
 
 export function MindmapView() {
   const svgRef = useRef<SVGSVGElement | null>(null);
+  // Publish into shared module ref so toolbar export can access it
+  useEffect(() => {
+    mmSvgRef.current = svgRef.current;
+    return () => { mmSvgRef.current = null; };
+  });
   const mmRef = useRef<Markmap | null>(null);
   const pendingFocusRef = useRef<PendingFocus | null>(null);
   const suppressNextClickRef = useRef(false);
