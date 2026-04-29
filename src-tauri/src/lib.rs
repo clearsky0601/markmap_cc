@@ -44,6 +44,7 @@ pub fn run() {
             cmd_watcher::start_watch,
             cmd_watcher::stop_watch,
             cmd_ai::ask_ai,
+            cmd_fs::new_window,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

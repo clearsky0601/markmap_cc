@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
 use serde::Serialize;
-use tauri::AppHandle;
+use tauri::{AppHandle, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_dialog::DialogExt;
 
 use crate::error::{CmdError, CmdResult};
@@ -155,4 +155,19 @@ pub async fn list_dir(path: String) -> CmdResult<Vec<TreeEntry>> {
         (TreeEntry::File { .. }, TreeEntry::Folder { .. }) => std::cmp::Ordering::Greater,
     });
     Ok(entries)
+}
+
+#[tauri::command]
+pub async fn new_window(app: AppHandle) -> CmdResult<()> {
+    let ts = std::time::SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let label = format!("w{ts}");
+    WebviewWindowBuilder::new(&app, label, WebviewUrl::App("/".into()))
+        .title("markmap_cc")
+        .inner_size(1200.0, 800.0)
+        .build()
+        .map_err(|e| CmdError::Other(e.to_string()))?;
+    Ok(())
 }

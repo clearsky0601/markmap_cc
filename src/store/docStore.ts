@@ -27,7 +27,9 @@ export const SAMPLE_MARKDOWN = `# markmap_cc
 - Bidirectional sync uses \`originRev\` to break loops
 `;
 
-export type DocOrigin = "init" | "editor" | "mindmap" | "file";
+export type DocOrigin = "init" | "editor" | "mindmap" | "file" | "undo";
+
+const MAX_HISTORY = 50;
 
 interface DocState {
   filePath: string | null;
@@ -37,8 +39,10 @@ interface DocState {
   savedRev: number;
   mtimeMs: number | null;
   lastOrigin: DocOrigin;
+  history: string[]; // undo stack — most recent entry at the end
 
   setMarkdown: (text: string, origin: DocOrigin) => void;
+  undo: () => void;
 
   newDocument: () => void;
   loadFile: (path: string) => Promise<void>;
@@ -54,6 +58,7 @@ export const useDocStore = create<DocState>((set, get) => ({
   savedRev: 0,
   mtimeMs: null,
   lastOrigin: "init",
+  history: [],
 
   setMarkdown: (text, origin) =>
     set((state) => ({
@@ -61,7 +66,25 @@ export const useDocStore = create<DocState>((set, get) => ({
       mdast: mdastFromMarkdown(text),
       originRev: state.originRev + 1,
       lastOrigin: origin,
+      // Push current text before replacing (skip for undo to avoid double-entry)
+      history:
+        origin === "undo"
+          ? state.history
+          : [...state.history.slice(-(MAX_HISTORY - 1)), state.markdownText],
     })),
+
+  undo: () =>
+    set((state) => {
+      if (state.history.length === 0) return state;
+      const prev = state.history[state.history.length - 1];
+      return {
+        markdownText: prev,
+        mdast: mdastFromMarkdown(prev),
+        originRev: state.originRev + 1,
+        lastOrigin: "undo",
+        history: state.history.slice(0, -1),
+      };
+    }),
 
   newDocument: () => {
     const text = "# Untitled\n\n- \n";
@@ -73,6 +96,7 @@ export const useDocStore = create<DocState>((set, get) => ({
       savedRev: state.originRev + 1,
       mtimeMs: null,
       lastOrigin: "file",
+      history: [], // fresh start — no undo across new doc
     }));
   },
 
@@ -88,6 +112,7 @@ export const useDocStore = create<DocState>((set, get) => ({
         savedRev: nextRev,
         mtimeMs: mtime_ms,
         lastOrigin: "file",
+        history: [], // fresh start after file load
       };
     });
   },

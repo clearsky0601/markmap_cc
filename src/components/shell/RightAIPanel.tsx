@@ -59,14 +59,89 @@ function saveConfig(cfg: AIConfig) {
   localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg));
 }
 
-// ── Markdown extraction ────────────────────────────────────────────────
+// ── Prompt ────────────────────────────────────────────────────────────
 
-function extractMarkdown(text: string): string | null {
+function buildSystemPrompt(currentMd: string): string {
+  return `You are a mindmap editing assistant. The mindmap is stored as Markdown (headings + bullet lists).
+
+Current document:
+\`\`\`markdown
+${currentMd}
+\`\`\`
+
+## Response format
+
+**Answering questions / explaining**: reply in plain text, no code block needed.
+
+**Small targeted edits** (add, rename, delete one or a few nodes):
+Use a patch block. Separate multiple patches with \`---\`:
+\`\`\`patch
+FIND:
+<exact text copied verbatim from the document, including leading spaces and "- ">
+REPLACE:
+<replacement text>
+\`\`\`
+
+**Large structural changes** (reorganize, rewrite, merge sections):
+Output the complete updated document:
+\`\`\`markdown
+...full updated content...
+\`\`\`
+
+## Critical rules
+- **Change ONLY what the user explicitly requested.** Preserve everything else exactly.
+- For FIND: copy the text character-for-character from the document, including list markers and indentation.
+- Do NOT add summaries, explanations, or extra nodes unless asked.
+- Do NOT remove or reorder content unless asked.
+- Keep the patch format for small changes — never rewrite the whole document just to add one node.`;
+}
+
+// ── Patch handling ─────────────────────────────────────────────────────
+
+interface Patch {
+  find: string;
+  replace: string;
+}
+
+function parsePatches(text: string): Patch[] | null {
+  const blockMatch = text.match(/```patch\n([\s\S]*?)```/);
+  if (!blockMatch) return null;
+
+  const block = blockMatch[1];
+  const segments = block.split(/\n---\n/);
+  const patches: Patch[] = [];
+
+  for (const seg of segments) {
+    // FIND: up to REPLACE:
+    const findMatch = seg.match(/^FIND:\n([\s\S]*?)(?=\nREPLACE:\n)/m);
+    // REPLACE: to end of segment
+    const replaceMatch = seg.match(/REPLACE:\n([\s\S]*)$/m);
+    if (findMatch && replaceMatch) {
+      patches.push({
+        find: findMatch[1],
+        replace: replaceMatch[1].trimEnd(),
+      });
+    }
+  }
+
+  return patches.length > 0 ? patches : null;
+}
+
+function applyPatches(markdown: string, patches: Patch[]): string | null {
+  let result = markdown;
+  for (const p of patches) {
+    if (!result.includes(p.find)) return null; // text not found
+    result = result.replace(p.find, p.replace);
+  }
+  return result;
+}
+
+function extractFullMd(text: string): string | null {
   const m = text.match(/```(?:markdown)?\n([\s\S]*?)```/);
   return m ? m[1].trimEnd() : null;
 }
 
-// ── Sub-components ─────────────────────────────────────────────────────
+// ── Components ─────────────────────────────────────────────────────────
 
 interface ConfigPanelProps {
   initial: AIConfig;
@@ -82,8 +157,6 @@ function ConfigPanel({ initial, onSave }: ConfigPanelProps) {
     setBaseUrl(p.baseUrl);
     setModel(p.model);
   };
-
-  const valid = baseUrl.trim().length > 0 && model.trim().length > 0;
 
   return (
     <div className="ai-config">
@@ -137,10 +210,12 @@ function ConfigPanel({ initial, onSave }: ConfigPanelProps) {
 
       <button
         className="ai-config__save"
-        disabled={!valid}
-        onClick={() => onSave({ baseUrl: baseUrl.trim(), apiKey, model: model.trim() })}
+        disabled={!baseUrl.trim() || !model.trim()}
+        onClick={() =>
+          onSave({ baseUrl: baseUrl.trim(), apiKey, model: model.trim() })
+        }
       >
-        Save & start chatting
+        Save &amp; start chatting
       </button>
     </div>
   );
@@ -151,31 +226,46 @@ interface Message {
   content: string;
 }
 
-function MessageBubble({ msg, onApply }: { msg: Message; onApply: (md: string) => void }) {
-  const applyMd = msg.role === "assistant" ? extractMarkdown(msg.content) : null;
-  const parts = msg.content.split(/(```(?:markdown)?\n[\s\S]*?```)/g);
+interface MessageBubbleProps {
+  msg: Message;
+  onApplyFull: (md: string) => void;
+  onApplyPatch: (patches: Patch[]) => void;
+}
+
+function MessageBubble({ msg, onApplyFull, onApplyPatch }: MessageBubbleProps) {
+  const patches = msg.role === "assistant" ? parsePatches(msg.content) : null;
+  const fullMd =
+    msg.role === "assistant" && !patches ? extractFullMd(msg.content) : null;
+
+  // Render content split around code blocks
+  const parts = msg.content.split(/(```[\s\S]*?```)/g);
 
   return (
     <div className={`ai-msg ai-msg--${msg.role}`}>
       <div className="ai-msg__bubble">
         {parts.map((part, i) => {
-          const inner = part.match(/```(?:markdown)?\n([\s\S]*?)```/);
+          const inner = part.match(/```(\w*)\n([\s\S]*?)```/);
           if (inner) {
             return (
               <pre key={i} className="ai-msg__code">
-                <code>{inner[1]}</code>
+                <code>{inner[2]}</code>
               </pre>
             );
           }
-          return part ? (
+          return part.trim() ? (
             <span key={i} className="ai-msg__text">
               {part}
             </span>
           ) : null;
         })}
       </div>
-      {applyMd ? (
-        <button className="ai-msg__apply" onClick={() => onApply(applyMd)}>
+
+      {patches ? (
+        <button className="ai-msg__apply" onClick={() => onApplyPatch(patches)}>
+          Apply patch ({patches.length} change{patches.length > 1 ? "s" : ""})
+        </button>
+      ) : fullMd ? (
+        <button className="ai-msg__apply" onClick={() => onApplyFull(fullMd)}>
           Apply to document
         </button>
       ) : null}
@@ -210,7 +300,22 @@ export function RightAIPanel() {
     setError(null);
   };
 
-  const applyMarkdown = (md: string) => setMarkdown(md, "editor");
+  const handleApplyFull = (md: string) => {
+    setMarkdown(md, "editor");
+  };
+
+  const handleApplyPatch = (patches: Patch[]) => {
+    const current = useDocStore.getState().markdownText;
+    const result = applyPatches(current, patches);
+    if (result !== null) {
+      setMarkdown(result, "editor");
+    } else {
+      setError(
+        "Patch failed: one or more FIND strings were not found in the document. " +
+          "Try rephrasing as a full rewrite.",
+      );
+    }
+  };
 
   const send = async () => {
     const text = input.trim();
@@ -224,12 +329,7 @@ export function RightAIPanel() {
     setLoading(true);
 
     const currentMd = useDocStore.getState().markdownText;
-    const systemContent =
-      `You are an AI assistant helping the user edit a mindmap stored as Markdown.\n\n` +
-      `Current document:\n\`\`\`markdown\n${currentMd}\n\`\`\`\n\n` +
-      `When the user asks you to modify the mindmap, respond with the complete updated ` +
-      `Markdown inside a \`\`\`markdown code block. ` +
-      `When answering questions, respond normally without a code block. Keep answers concise.`;
+    const systemContent = buildSystemPrompt(currentMd);
 
     const apiMessages = [
       { role: "system", content: systemContent },
@@ -246,7 +346,6 @@ export function RightAIPanel() {
       setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
     } catch (e) {
       setError(String(e));
-      // Remove the optimistically added user message on hard error
       setMessages((prev) => prev.slice(0, -1));
     } finally {
       setLoading(false);
@@ -313,7 +412,12 @@ export function RightAIPanel() {
         ) : null}
 
         {messages.map((msg, i) => (
-          <MessageBubble key={i} msg={msg} onApply={applyMarkdown} />
+          <MessageBubble
+            key={i}
+            msg={msg}
+            onApplyFull={handleApplyFull}
+            onApplyPatch={handleApplyPatch}
+          />
         ))}
 
         {loading ? (

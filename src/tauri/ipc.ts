@@ -49,6 +49,8 @@ export const ipc = {
 
   stopWatch: (path: string) => invoke<void>("stop_watch", { path }),
 
+  newWindow: () => invoke<void>("new_window"),
+
   askAi: (
     baseUrl: string,
     apiKey: string,

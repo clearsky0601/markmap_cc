@@ -5,6 +5,7 @@ import { TopToolbar } from "./components/shell/TopToolbar";
 import { LeftFileTree } from "./components/shell/LeftFileTree";
 import { RightAIPanel } from "./components/shell/RightAIPanel";
 import { useAutosave } from "./hooks/useAutosave";
+import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { useDocStore } from "./store/docStore";
 import { useUiStore, type Theme } from "./store/uiStore";
 import { ipc } from "./tauri/ipc";
@@ -18,6 +19,7 @@ function applyTheme(theme: Theme) {
 
 function App() {
   useAutosave();
+  useKeyboardShortcuts();
   const leftOpen = useUiStore((s) => s.leftOpen);
   const rightOpen = useUiStore((s) => s.rightOpen);
   const filePath = useDocStore((s) => s.filePath);
