@@ -1,6 +1,7 @@
 mod commands;
 mod error;
 
+use commands::ai as cmd_ai;
 use commands::fs as cmd_fs;
 use commands::recent as cmd_recent;
 use commands::watcher as cmd_watcher;
@@ -42,6 +43,7 @@ pub fn run() {
             cmd_recent::remove_recent,
             cmd_watcher::start_watch,
             cmd_watcher::stop_watch,
+            cmd_ai::ask_ai,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

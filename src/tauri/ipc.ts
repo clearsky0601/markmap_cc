@@ -48,4 +48,10 @@ export const ipc = {
   startWatch: (path: string) => invoke<void>("start_watch", { path }),
 
   stopWatch: (path: string) => invoke<void>("stop_watch", { path }),
+
+  askAi: (
+    apiKey: string,
+    system: string,
+    messages: { role: string; content: string }[],
+  ) => invoke<string>("ask_ai", { apiKey, system, messages }),
 };
