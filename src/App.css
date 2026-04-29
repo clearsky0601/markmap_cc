@@ -572,6 +572,47 @@ body {
   white-space: pre;
 }
 
+/* In-bubble context quote (user message) */
+.ai-msg__quote {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 7px;
+  padding: 5px 9px;
+  margin-bottom: 5px;
+  max-width: 92%;
+  align-self: flex-end;
+}
+
+.ai-msg__quote-icon {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.7);
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.ai-msg__quote-lines {
+  flex: 1;
+  min-width: 0;
+}
+
+.ai-msg__quote-line {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.85);
+  line-height: 1.45;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-msg__quote-more {
+  font-size: 10.5px;
+  color: rgba(255, 255, 255, 0.5);
+  font-style: italic;
+  margin-top: 1px;
+}
+
 .ai-msg__apply {
   align-self: flex-start;
   background: var(--accent);

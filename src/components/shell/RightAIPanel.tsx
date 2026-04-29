@@ -269,6 +269,7 @@ function ConfigPanel({ initial, onSave }: ConfigPanelProps) {
 interface Message {
   role: "user" | "assistant";
   content: string;
+  context?: string[]; // node texts captured at send time
 }
 
 interface MessageBubbleProps {
@@ -282,11 +283,24 @@ function MessageBubble({ msg, onApplyFull, onApplyPatch }: MessageBubbleProps) {
   const fullMd =
     msg.role === "assistant" && !patches ? extractFullMd(msg.content) : null;
 
-  // Render content split around code blocks
   const parts = msg.content.split(/(```[\s\S]*?```)/g);
 
   return (
     <div className={`ai-msg ai-msg--${msg.role}`}>
+      {/* Context quote embedded in user bubble — like IM "reply to" */}
+      {msg.role === "user" && msg.context && msg.context.length > 0 && (
+        <div className="ai-msg__quote">
+          <span className="ai-msg__quote-icon">◈</span>
+          <div className="ai-msg__quote-lines">
+            {msg.context.slice(0, 3).map((t, i) => (
+              <div key={i} className="ai-msg__quote-line">{t}</div>
+            ))}
+            {msg.context.length > 3 && (
+              <div className="ai-msg__quote-more">+{msg.context.length - 3} more</div>
+            )}
+          </div>
+        </div>
+      )}
       <div className="ai-msg__bubble">
         {parts.map((part, i) => {
           const inner = part.match(/```(\w*)\n([\s\S]*?)```/);
@@ -383,10 +397,13 @@ export function RightAIPanel() {
     setInput("");
     setError(null);
 
-    const userMsg: Message = { role: "user", content: text };
+    // Snapshot context at send time, then dismiss the input-area chip
+    const capturedContext = showContext ? [...contextTexts] : undefined;
+    const userMsg: Message = { role: "user", content: text, context: capturedContext };
     const nextMessages: Message[] = [...messages, userMsg];
     setMessages(nextMessages);
     setLoading(true);
+    if (capturedContext) setContextDismissed(true); // context moves into the bubble
 
     const currentMd = useDocStore.getState().markdownText;
     const systemContent = buildSystemPrompt(
