@@ -96,6 +96,20 @@ export function MindmapView() {
       return (inner instanceof HTMLElement ? inner : null) ?? null;
     };
 
+    // Returns the current d3-zoom scale by reading the transform matrix on
+    // the first <g> child (where markmap stores the pan/zoom transform).
+    const svgZoomScale = (): number => {
+      const g = svg.querySelector("g");
+      if (!g) return 1;
+      try {
+        const matrix = (g as SVGGElement).transform.baseVal.consolidate()?.matrix;
+        // matrix.a == scaleX for uniform scaling (d3-zoom always scales uniformly)
+        return matrix ? matrix.a : 1;
+      } catch {
+        return 1;
+      }
+    };
+
     const rectOfG = (g: SVGGElement): EditRect => {
       const inner = textElementOf(g);
       const fo = g.querySelector("foreignObject");
@@ -109,13 +123,21 @@ export function MindmapView() {
       };
       if (inner) {
         const cs = window.getComputedStyle(inner);
+        // getComputedStyle returns CSS px values BEFORE the SVG transform scale.
+        // We must multiply by the zoom scale so the overlay font/padding matches
+        // the node's visual size on screen.
+        const scale = svgZoomScale();
+        const scalePx = (v: string): string | undefined => {
+          const n = parseFloat(v);
+          return isNaN(n) ? undefined : `${(n * scale).toFixed(2)}px`;
+        };
         base.fontFamily = cs.fontFamily;
-        base.fontSize = cs.fontSize;
-        base.lineHeight = cs.lineHeight;
-        base.paddingLeft = cs.paddingLeft;
-        base.paddingRight = cs.paddingRight;
-        base.paddingTop = cs.paddingTop;
-        base.paddingBottom = cs.paddingBottom;
+        base.fontSize = scalePx(cs.fontSize);
+        base.lineHeight = scalePx(cs.lineHeight) ?? cs.lineHeight;
+        base.paddingLeft = scalePx(cs.paddingLeft);
+        base.paddingRight = scalePx(cs.paddingRight);
+        base.paddingTop = scalePx(cs.paddingTop);
+        base.paddingBottom = scalePx(cs.paddingBottom);
       }
       return base;
     };
