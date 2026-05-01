@@ -4,10 +4,11 @@
 
 # markmap_cc
 
-**A native desktop editor where Markdown and mind maps live as one.**
+**🤖 An AI-powered Markdown × mind-map native desktop editor.**
 
-Every note is a zoomable, editable, exportable mind map.
+Type your notes → watch them turn into a live, zoomable mind map → **box-select any branch and let AI continue the thought.**
 
+[![AI](https://img.shields.io/badge/AI-OpenAI%20Compatible-10A37F?logo=openai&logoColor=white)](#-what-the-ai-does)
 [![Tauri](https://img.shields.io/badge/Tauri-2.10-FFC131?logo=tauri&logoColor=white)](https://tauri.app)
 [![React](https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
@@ -27,15 +28,25 @@ Every note is a zoomable, editable, exportable mind map.
 
 ## ✨ What is this
 
-`markmap_cc` is a desktop-class **Markdown × mind-map** editor built with **Tauri + React**.
-
-The core idea is simple — **Markdown _is_ the map, the map _is_ Markdown**:
+`markmap_cc` is a desktop-class **Markdown × mind-map** editor built with **Tauri + React**, paired with an **AI copilot that actually understands your structure**:
 
 - Type Markdown on the left, see the live mind map on the right. **Two-way, real-time sync.**
 - Double-click a node to edit text in place — the underlying Markdown is patched surgically, preserving your original formatting.
-- Stuck? Box-select a branch, drop it into the AI side panel as a quoted context, and let the model continue your line of thinking.
+- Stuck? Box-select a branch in the map, drop it into the AI side panel as a quoted context, and let the model continue your line of thinking.
 
-## 🎯 Features
+## 🤖 What the AI does
+
+> Not just another chat box — a copilot **that reads your mind map's structure**.
+
+| | |
+|---|---|
+| 🎯 **Structure-aware context** | Lasso any node or subtree on the canvas — the selection is converted into a Markdown blockquote and dropped into the chat. The model sees your **full hierarchy**, not a flat blob of text. |
+| ✏️ **Targeted patch output** | The system prompt is engineered so replies come back as actionable Markdown patches: which branch to extend, what indent level, which bullet to insert under. |
+| 🔌 **Any OpenAI-compatible provider** | OpenAI, DeepSeek, Groq, Ollama, your own proxy, local LM Studio — one settings panel for `Base URL` / `Model` / `API Key`. **Keys live only on your machine.** |
+| 💬 **Persistent dialogue with inline quotes** | The quoted context is folded into the user bubble on send; multi-turn history preserves how you incrementally sculpted the map. |
+| 🔒 **No cloud lock-in** | No required login, your notes never get shipped to a SaaS we control — your data only goes wherever your chosen model lives. |
+
+## 🎯 Other features
 
 | | |
 |---|---|
@@ -43,7 +54,6 @@ The core idea is simple — **Markdown _is_ the map, the map _is_ Markdown**:
 | ✍️ **Inline node editing** | Double-click a node to edit; overlay font and padding scale with zoom. |
 | 🪟 **Multi-select & box-select** | Drag to lasso, `⌘+Click` to add or remove from selection. |
 | ↩️ **Unified undo stack** | `⌘Z / ⌘⇧Z` works across both the editor and the map. |
-| 🤖 **Built-in AI chat** | Any OpenAI-compatible provider; selected nodes become quoted context. |
 | 📁 **File tree + recents** | Left sidebar manages local Markdown files; recents are tracked automatically. |
 | 👀 **External-change detection** | Edited the file in another app? You get a reload prompt — no silent overwrites. |
 | 💾 **Autosave** | Saves quietly in the background; `⌘S` defaults to your **H1 title** as the filename. |
