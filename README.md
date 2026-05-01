@@ -19,7 +19,7 @@
 
 <br />
 
-<img src="./docs/screenshot.jpeg" alt="markmap_cc 主界面截图" width="100%" />
+<img src="./docs/screenshot.png" alt="markmap_cc 主界面截图" width="100%" />
 
 </div>
 

@@ -19,7 +19,7 @@ Every note is a zoomable, editable, exportable mind map.
 
 <br />
 
-<img src="./docs/screenshot.jpeg" alt="markmap_cc main interface" width="100%" />
+<img src="./docs/screenshot.png" alt="markmap_cc main interface" width="100%" />
 
 </div>
 
