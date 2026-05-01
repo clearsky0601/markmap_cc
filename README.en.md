@@ -17,6 +17,10 @@ Every note is a zoomable, editable, exportable mind map.
 
 **English** · [简体中文](./README.md)
 
+<br />
+
+<img src="./docs/screenshot.jpeg" alt="markmap_cc main interface" width="100%" />
+
 </div>
 
 ---

@@ -17,6 +17,10 @@
 
 [English](./README.en.md) · **简体中文**
 
+<br />
+
+<img src="./docs/screenshot.jpeg" alt="markmap_cc 主界面截图" width="100%" />
+
 </div>
 
 ---
